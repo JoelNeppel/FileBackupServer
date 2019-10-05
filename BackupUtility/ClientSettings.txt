@@ -1,0 +1,6 @@
+Check IP:> 		true or false to check ip before backing up:>
+Expected IP:> 	ip client must have to backup:>
+Host:>			host ip:>
+Port:>			port to use:>
+Password:>		password to connect:>
+Cipher Key:>	used for encryption:>

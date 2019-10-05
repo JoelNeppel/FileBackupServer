@@ -1,0 +1,4 @@
+Storage Location:>	/Path/To/Put/Files/:>
+Port:>				port to use:>
+Password:>			password used to allow connections:>
+Cipher Key:>		password used for encryption:>

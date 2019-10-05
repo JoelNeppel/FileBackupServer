@@ -1,0 +1,1 @@
+C:\Path\To\Directory\or\file :> BACKUP_ACTION :> \DifferentRelativePathIfWanted\ :>
