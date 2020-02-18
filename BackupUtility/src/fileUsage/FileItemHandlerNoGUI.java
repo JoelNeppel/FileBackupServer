@@ -19,7 +19,6 @@ public class FileItemHandlerNoGUI
 	/**
 	 * The items that will be backed up
 	 */
-	// private ObservableList<BackupItem> items;
 	private DoublyLinkedList<BackupItem> items;
 
 	/**
@@ -47,9 +46,37 @@ public class FileItemHandlerNoGUI
 
 			while(scan.hasNextLine())
 			{
+				Scanner lineScan = null;
 				try
 				{
-					addItem(new BackupItem(scan.nextLine(), BackupItem.BackupAction.getFromString(scan.nextLine())));
+					lineScan = new Scanner(scan.nextLine());
+					lineScan.useDelimiter(":>");
+
+					String path = lineScan.next().trim();
+					BackupItem.BackupAction action = BackupItem.BackupAction.getFromString(lineScan.next().trim());
+
+					if(lineScan.hasNext())
+					{
+						String newPath = lineScan.next().trim();
+						addItem(new BackupItem(path, action)
+						{
+							@Override
+							public String getPathToRemove()
+							{
+								return getFile().getAbsolutePath();
+							}
+
+							@Override
+							public String getPathToSend()
+							{
+								return newPath;
+							}
+						});
+					}
+					else
+					{
+						addItem(new BackupItem(path, action));
+					}
 				}
 				catch(FileNotFoundException e)
 				{
@@ -58,6 +85,13 @@ public class FileItemHandlerNoGUI
 				catch(NoSuchElementException e)
 				{
 					System.out.println("Backup item list not in expected format.");
+				}
+				finally
+				{
+					if(null != lineScan)
+					{
+						lineScan.close();
+					}
 				}
 			}
 		}
@@ -136,7 +170,7 @@ public class FileItemHandlerNoGUI
 		{
 			if(relativePath.contains(item.getPathToSend()))
 			{
-				return item.getPathToRemove().concat(relativePath);
+				return item.getFullPath(relativePath);
 			}
 		}
 
@@ -163,7 +197,7 @@ public class FileItemHandlerNoGUI
 			return true;
 		}
 
-		return f.mkdir();
+		return f.mkdirs();
 	}
 
 	/**

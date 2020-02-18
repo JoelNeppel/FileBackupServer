@@ -1,6 +1,6 @@
 package fileUsage;
 
-import java.io.FileNotFoundException;
+import java.io.File;
 
 /**
  * Class for items that failed.
@@ -8,31 +8,51 @@ import java.io.FileNotFoundException;
  * @author JoelNeppel
  *
  */
-public class FailedItem extends BackupItem
+public class FailedItem
 {
 	/**
-	 * The path to remove for the item
+	 * The file that failed during backup
 	 */
-	private String pathRemove;
+	private File failedFile;
 
 	/**
-	 * @param fileLocation
-	 *     The location for this file
-	 * @param action
-	 *     The action to perform on this item
-	 * @param pathToRemove
-	 *     The path to remove for this item
-	 * @throws FileNotFoundException
+	 * The head directory for the file that failed
 	 */
-	public FailedItem(String fileLocation, BackupAction action, String pathToRemove) throws FileNotFoundException
+	private BackupItem head;
+
+	/**
+	 * @param failed
+	 *     The file that failed to be backed up
+	 * @param head
+	 *     The head for the file that failed
+	 */
+	public FailedItem(File failed, BackupItem head)
 	{
-		super(fileLocation, action);
-		pathRemove = pathToRemove;
+		failedFile = failed;
+		this.head = head;
+	}
+
+	/**
+	 * Returns the file that failed during backup.
+	 * @return The failed file
+	 */
+	public File getFile()
+	{
+		return failedFile;
+	}
+
+	/**
+	 * Returns the head directory for the file to be used during backup.
+	 * @return The head directory
+	 */
+	public BackupItem getHead()
+	{
+		return head;
 	}
 
 	@Override
-	public String getPathToRemove()
+	public String toString()
 	{
-		return pathRemove;
+		return "Failed: " + failedFile.toString();
 	}
 }

@@ -7,7 +7,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
-import java.text.DecimalFormat;
 
 /**
  * Abstract connection handling for standard sending and receiving.
@@ -67,37 +66,45 @@ public abstract class AbstractConnection
 	 */
 	public void sendFile(File f) throws IOException
 	{
-		FileInputStream fileRead = new FileInputStream(f);
-
-		// Send file size to receiver for how many bytes to expect
-		out.write(ByteHelp.toBytes(f.length()));
-
-		DecimalFormat df = new DecimalFormat("#.##");
-		long length = f.length();
-		byte[] bytes = new byte[(int) Math.min(length, Integer.MAX_VALUE * 0.75)];
-		int start = 0;
-		while(length > 0)
+		FileInputStream fileRead = null;
+		System.out.println("Sending: " + f);
+		try
 		{
-			if(length >= bytes.length)
+			fileRead = new FileInputStream(f);
+
+			// Send file size to receiver for how many bytes to expect
+			out.write(ByteHelp.toBytes(f.length()));
+			long length = f.length();
+			byte[] bytes = new byte[(int) Math.min(length, 1073741824)];
+			int start = 0;
+			while(length > 0)
 			{
-				int read = fileRead.read(bytes);
+				int read = 0;
+				if(length >= bytes.length)
+				{
+					read = fileRead.read(bytes);
+				}
+				else
+				{
+					read = fileRead.read(bytes, 0, (int) length);
+				}
+
 				start = encrypt(bytes, read, start);
 				out.write(bytes, 0, read);
 				length -= read;
 			}
-			else
+		}
+		catch(IOException e)
+		{
+			if(null != fileRead)
 			{
-				int read = fileRead.read(bytes, 0, (int) length);
-				start = encrypt(bytes, read, start);
-				out.write(bytes, 0, read);
-				length -= read;
+				fileRead.close();
 			}
-			reportPercent("Sending file [" + df.format((double) (f.length() - length) / f.length() * 100) + "%]");
+			throw e;
 		}
 
-		reportPercent("Sending file [100%]");
-
 		fileRead.close();
+		System.out.println("Done sending");
 	}
 
 	/**
@@ -162,50 +169,60 @@ public abstract class AbstractConnection
 	 */
 	public void receiveFile(File write) throws IOException
 	{
+		System.out.println("Receiving: " + write);
 		File temp = new File(write.getPath() + ".temp");
+		if(temp.exists())
+		{
+			temp.delete();
+		}
 		write.renameTo(temp);
+		FileOutputStream fileWrite = null;
 		try
 		{
 			write.createNewFile();
-			FileOutputStream fileWrite = new FileOutputStream(write);
+			fileWrite = new FileOutputStream(write);
 
 			byte[] size = new byte[Long.BYTES];
 			in.read(size);
 			long bytesLeft = ByteHelp.bytesToLong(size);
 			double totalBytes = bytesLeft;
-			byte[] bytes = new byte[(int) Math.min(totalBytes, 1000000000)];
-
-			DecimalFormat df = new DecimalFormat("#.##");
+			byte[] bytes = new byte[(int) Math.min(totalBytes, 1073741824)];
 			int start = 0;
 			while(bytesLeft > 0)
 			{
+				int read = 0;
 				if(bytesLeft >= bytes.length)
 				{
-					int read = in.read(bytes);
-					start = decrypt(bytes, read, start);
-					fileWrite.write(bytes, 0, read);
-					bytesLeft -= read;
+					read = in.read(bytes);
 				}
 				else
 				{
-					int read = in.read(bytes, 0, (int) bytesLeft);
-					start = decrypt(bytes, read, start);
-					fileWrite.write(bytes, 0, read);
-					bytesLeft -= read;
+					read = in.read(bytes, 0, (int) bytesLeft);
 				}
-				reportPercent("Receiving file [" + df.format((totalBytes - bytesLeft) / totalBytes * 100) + "%]");
+
+				start = decrypt(bytes, read, start);
+				fileWrite.write(bytes, 0, read);
+				bytesLeft -= read;
 			}
-			reportPercent("Receiving file [100%]");
 
 			fileWrite.close();
 			temp.delete();
 		}
 		catch(Exception e)
 		{
+			// TODO actually do this correctly
 			write.delete();
 			temp.renameTo(write);
+
+			if(null != fileWrite)
+			{
+				fileWrite.close();
+			}
+
 			throw e;
 		}
+
+		System.out.println("Got: " + write);
 	}
 
 	/**
@@ -222,8 +239,8 @@ public abstract class AbstractConnection
 		int packetSize = ByteHelp.bytesToInt(sizeBytes);
 		byte[] bytes = new byte[packetSize];
 		in.read(bytes);
-		Packet p = new Packet(bytes);
-		return p;
+
+		return new Packet(bytes);
 	}
 
 	/**
@@ -243,13 +260,6 @@ public abstract class AbstractConnection
 			return -1;
 		}
 	}
-
-	/**
-	 * Reports the percentage of the a file being sent or received.
-	 * @param report
-	 *     The reported string
-	 */
-	protected abstract void reportPercent(String report);
 
 	/**
 	 * Clears the input in the event of an exception
@@ -297,8 +307,6 @@ public abstract class AbstractConnection
 	{
 		try
 		{
-			socket.shutdownInput();
-			socket.shutdownOutput();
 			socket.close();
 		}
 		catch(IOException e)

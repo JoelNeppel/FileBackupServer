@@ -66,4 +66,10 @@ public class SystemFileReader
 	{
 		return items.get(key);
 	}
+
+	@Override
+	public String toString()
+	{
+		return items.toString();
+	}
 }

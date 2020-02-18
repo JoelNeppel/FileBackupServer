@@ -132,16 +132,24 @@ public class BackupItem
 	private BackupAction action;
 
 	/**
+	 * Null to use the name of the file. If not null, it will be the relative path
+	 * returned
+	 */
+	private String relativePath;
+
+	/**
 	 * Creates a new item to add to the list of backup items using the given path
 	 * and backup action to perform on the file.
 	 * @param fileLocation
 	 *     The path on the hard drive for the file that will be backed up
 	 * @param action
 	 *     The backup actions to perform on the file
+	 * @param relative
+	 *     The new relative path that will be the location on the backup location
 	 * @throws FileNotFoundException
 	 *     If the file at the given path does not exist
 	 */
-	public BackupItem(String fileLocation, BackupAction action) throws FileNotFoundException
+	public BackupItem(String fileLocation, BackupAction action, String relative) throws FileNotFoundException
 	{
 		file = new File(fileLocation);
 		if(!file.exists())
@@ -150,6 +158,12 @@ public class BackupItem
 		}
 
 		this.action = action;
+		relativePath = relative;
+	}
+
+	public BackupItem(String fileLocation, BackupAction action) throws FileNotFoundException
+	{
+		this(fileLocation, action, null);
 	}
 
 	/**
@@ -174,9 +188,9 @@ public class BackupItem
 	 * Returns the full path for this item.
 	 * @return The full path for the file
 	 */
-	public String getFullPath()
+	public String getAbsolutePath()
 	{
-		return file.getPath();
+		return file.getAbsolutePath();
 	}
 
 	/**
@@ -186,7 +200,14 @@ public class BackupItem
 	 */
 	public String getPathToRemove()
 	{
-		return file.getPath().replaceAll(file.getName(), "");
+		if(null == relativePath)
+		{
+			return file.getAbsolutePath();
+		}
+		else
+		{
+			return file.getAbsolutePath().replaceAll(file.getName(), "");
+		}
 	}
 
 	/**
@@ -195,12 +216,43 @@ public class BackupItem
 	 */
 	public String getPathToSend()
 	{
-		return file.getPath().replace(getPathToRemove(), "");
+		if(null != relativePath)
+		{
+			return relativePath;
+		}
+		else
+		{
+			return file.getAbsolutePath().replace(getPathToRemove(), "");
+		}
 	}
 
-	@Override
-	public String toString()
+	/**
+	 * Returns the path to be sent for the given file. Replaces the full path of the
+	 * backup item file with the path to be sent,by default the name of the backup
+	 * item file that can be overridden to be a different relative location.
+	 * @param send
+	 *     The file path to be converted into path to send
+	 * @return The relative path of the file to be sent
+	 */
+	public String getPathToSend(File send)
 	{
-		return file.getPath() + "\n" + action.toString();
+		return send.getAbsolutePath().replace(file.getAbsolutePath(), getPathToSend());
+	}
+
+	/**
+	 * Converts the relative path into an absolute path that will lead to the file
+	 * on the local machine.
+	 * @param relative
+	 *     The relative path received
+	 * @return The string of the absolute path of the file
+	 */
+	public String getFullPath(String relative)
+	{
+		if(null == relativePath)
+		{
+			return getAbsolutePath().concat(System.getProperty("file.separator") + relative.replaceFirst(getPathToSend(), ""));
+		}
+
+		return getPathToRemove().concat(relative);
 	}
 }

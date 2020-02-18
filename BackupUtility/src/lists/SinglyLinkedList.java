@@ -156,6 +156,24 @@ public class SinglyLinkedList<E> implements Iterable<E>
 	}
 
 	@Override
+	public String toString()
+	{
+		Iterator<E> iter = iterator();
+		String result = "[";
+		while(iter.hasNext())
+		{
+			result += iter.next().toString();
+			if(iter.hasNext())
+			{
+				result += ", ";
+			}
+		}
+
+		result += "]";
+		return result;
+	}
+
+	@Override
 	public Iterator<E> iterator()
 	{
 		return new SinglyLinkedIterator();

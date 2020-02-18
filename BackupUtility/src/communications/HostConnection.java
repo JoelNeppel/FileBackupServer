@@ -36,7 +36,13 @@ public class HostConnection extends AbstractConnection
 	 */
 	public void sendFileList(File f, String pathRemove) throws IOException
 	{
-		sendFileListRecursive(f, pathRemove);
+		if(f.isDirectory())
+		{
+			for(File ff : f.listFiles())
+			{
+				sendFileListRecursive(ff, pathRemove);
+			}
+		}
 		write((byte) 0xFF);
 	}
 
@@ -51,6 +57,11 @@ public class HostConnection extends AbstractConnection
 	 */
 	private void sendFileListRecursive(File f, String pathRemove) throws IOException
 	{
+		if(f.isHidden() || (f.isDirectory() && null == f.list()))
+		{
+			return;
+		}
+
 		String send = f.getPath().replace(pathRemove, "");
 		write(send.getBytes());
 		write((byte) 0x0D);
@@ -62,11 +73,5 @@ public class HostConnection extends AbstractConnection
 				sendFileListRecursive(ff, pathRemove);
 			}
 		}
-	}
-
-	@Override
-	protected void reportPercent(String report)
-	{
-		// HostGraphic.updateAction(getAddress(), report);
 	}
 }

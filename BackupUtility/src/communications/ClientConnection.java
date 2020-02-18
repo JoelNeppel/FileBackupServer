@@ -3,7 +3,6 @@ package communications;
 import java.io.IOException;
 import java.net.Socket;
 
-import fileBackup.ClientGraphic;
 import lists.DoublyLinkedList;
 
 /**
@@ -56,11 +55,5 @@ public class ClientConnection extends AbstractConnection
 			got = read();
 		}
 		return list;
-	}
-
-	@Override
-	protected void reportPercent(String report)
-	{
-		ClientGraphic.setAction(report);
 	}
 }

@@ -1,5 +1,7 @@
 package communications;
 
+import fileUsage.FileStatus;
+
 /**
  * Stores data to be sent or received and processes into or out of byte form.
  *
@@ -59,6 +61,20 @@ public class Packet
 	}
 
 	/**
+	 * Creates packet to be sent using the given data.
+	 * @param command
+	 *     The command that will be sent
+	 * @param dateModified
+	 *     The date the file was last modified
+	 * @param relativePath
+	 *     The relative path of the file
+	 */
+	public Packet(Command command, String relativePath)
+	{
+		this(command, FileStatus.UNKNOWN, 0, relativePath);
+	}
+
+	/**
 	 * Creates a packet with the given command, commonly only used for failed and
 	 * success.
 	 * @param command
@@ -66,7 +82,12 @@ public class Packet
 	 */
 	public Packet(Command command)
 	{
-		this(command, null, 0, null);
+		this(command, FileStatus.UNKNOWN, 0, null);
+	}
+
+	public Packet()
+	{
+		this(null, FileStatus.UNKNOWN, 0, null);
 	}
 
 	/**

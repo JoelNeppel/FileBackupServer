@@ -1,6 +1,6 @@
-Check IP:> 		true or false to check ip before backing up:>
-Expected IP:> 	ip client must have to backup:>
-Host:>			host ip:>
-Port:>			port to use:>
-Password:>		password to connect:>
-Cipher Key:>	used for encryption:>
+Check IP:> 		false:>
+Expected IP:> 		10.37.17.122:>
+Host:>			yumpi:>
+Port:>			51160:>
+Password:>		STUP1Dc0!!4gebumz tryin tooobhaking.."but yme?!@$? -4realz#:>
+Cipher Key:>		y3qpeWz.XP-n}Q[Q5BP`YAt-_f/QbZ!kz	ZL%,Bs`SzV%F,wAGX2*|[jto]T`J@x>&(i~wa|'%l;l.DdtWZfLFp#Y>|{_,#I9IYg<&F"&g-I3O7!1?)[/w0Bb(sc~Qe ?\0jHo:@26C1!-:>

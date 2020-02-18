@@ -1,0 +1,5 @@
+C:\Users\joeln\Desktop\BackupTest\TestInternshipApplications:>ALL:>:>
+C:\Users\joeln\Desktop\BackupTest\TestPictures:>CONTENTS_ONLY:>:>
+C:\Users\joeln\Desktop\BackupTest\schoolPlan.xlsx:>PUSH_ONLY:>:>
+C:\Users\joeln\Desktop\BackupTest\TechElectives.docx:>PULL_ONLY:>:>
+C:\Users\joeln\Desktop\BackupTest\Big_Java_4th_Ed.pdf:>ALL:>:>

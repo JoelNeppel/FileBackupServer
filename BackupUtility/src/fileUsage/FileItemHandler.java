@@ -21,7 +21,6 @@ public class FileItemHandler
 	 * The items that will be backed up
 	 */
 	private ObservableList<BackupItem> items;
-	// private DoublyLinkedList<BackupItem> items;
 
 	/**
 	 * Creates a new handler with an empty list
@@ -59,9 +58,20 @@ public class FileItemHandler
 
 					if(lineScan.hasNext())
 					{
+						String newPath = lineScan.next().trim();
 						addItem(new BackupItem(path, action)
 						{
+							@Override
+							public String getPathToRemove()
+							{
+								return getFile().getAbsolutePath();
+							}
 
+							@Override
+							public String getPathToSend()
+							{
+								return newPath;
+							}
 						});
 					}
 					else
@@ -161,7 +171,7 @@ public class FileItemHandler
 		{
 			if(relativePath.contains(item.getPathToSend()))
 			{
-				return item.getPathToRemove().concat(relativePath);
+				return item.getFullPath(relativePath);
 			}
 		}
 
@@ -188,7 +198,7 @@ public class FileItemHandler
 			return true;
 		}
 
-		return f.mkdir();
+		return f.mkdirs();
 	}
 
 	/**
