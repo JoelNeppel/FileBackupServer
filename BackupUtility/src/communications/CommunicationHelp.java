@@ -113,7 +113,7 @@ public abstract class CommunicationHelp
 	 *     The packet to be sent
 	 * @param s
 	 */
-	public void forceSendPacket(Packet p, Socket s)
+	public static void forceSendPacket(Packet p, Socket s)
 	{
 		boolean sent = false;
 		int numAttempts = 0;
