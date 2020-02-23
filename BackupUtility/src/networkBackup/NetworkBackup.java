@@ -1,6 +1,7 @@
 package networkBackup;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -27,6 +28,7 @@ import javax.crypto.SecretKey;
 import communications.Command;
 import communications.CommunicationHelp;
 import communications.Packet;
+import exceptions.ItemNotFoundException;
 import exceptions.SystemErrorException;
 import fileBackup.BackupInitilizer;
 import fileBackup.BackupPreparer;
@@ -66,11 +68,24 @@ public class NetworkBackup extends FileChecker implements BackupPreparer, Backup
 			SystemFileReader settings = new SystemFileReader("NetworkBackupSettings\\" + name + ".txt");
 
 			// Connect to host
-			comms = new Socket(settings.get("host"), Integer.parseInt(settings.get("port")));
+			try
+			{
+				comms = new Socket(settings.get("Host"), Integer.parseInt(settings.get("Port")));
+			}
+			catch(ItemNotFoundException e)
+			{
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 
 			// Share AES cipher with host to securely send files
 			// Get Host RSA public key and create cipher
-			X509EncodedKeySpec spec = new X509EncodedKeySpec(settings.get("public key").getBytes());
+			File encodedKey = new File("RSAPublicEncodedKey");
+			FileInputStream in = new FileInputStream(encodedKey);
+			byte[] read = new byte[(int) encodedKey.length()];
+			in.read(read);
+			in.close();
+			X509EncodedKeySpec spec = new X509EncodedKeySpec(read);
 			KeyFactory kf = KeyFactory.getInstance("RSA");
 			PublicKey publicKey = kf.generatePublic(spec);
 			Cipher publicHost = Cipher.getInstance("RSA");
@@ -98,14 +113,22 @@ public class NetworkBackup extends FileChecker implements BackupPreparer, Backup
 			decrypt.init(Cipher.DECRYPT_MODE, aeskey, cipher.getParameters());
 
 			// Send host AES encrypted username and password for login
-			byte[] username = encrypt.doFinal(settings.get("username").getBytes());
-			byte[] password = encrypt.doFinal(settings.get("password").getBytes());
-			buffer = ByteBuffer.allocate(2 * Integer.BYTES + username.length + password.length);
-			buffer.putInt(username.length);
-			buffer.put(username);
-			buffer.putInt(password.length);
-			buffer.put(password);
-			out.write(buffer.array());
+			try
+			{
+				byte[] username = encrypt.doFinal(settings.get("Username").getBytes());
+				byte[] password = encrypt.doFinal(settings.get("Password").getBytes());
+				buffer = ByteBuffer.allocate(2 * Integer.BYTES + username.length + password.length);
+				buffer.putInt(username.length);
+				buffer.put(username);
+				buffer.putInt(password.length);
+				buffer.put(password);
+				out.write(buffer.array());
+			}
+			catch(ItemNotFoundException e)
+			{
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 
 			// TODO maybe check login accepted
 		}
@@ -180,6 +203,7 @@ public class NetworkBackup extends FileChecker implements BackupPreparer, Backup
 		{
 			try
 			{
+				CommunicationHelp.forceSendPacket(new Packet(Command.CLOSE), comms);
 				comms.close();
 				comms = null;
 			}
@@ -203,25 +227,6 @@ public class NetworkBackup extends FileChecker implements BackupPreparer, Backup
 	}
 
 	@Override
-	public boolean createDirectory(BackupItem head, File directory) throws InterruptedException, SystemErrorException
-	{
-		System.out.println("Create directory " + directory + toString());
-		Packet got = new Packet();
-		try
-		{
-			CommunicationHelp.sendPacket(new Packet(Command.CREATE_DIRECTORY, head.getPathToSend(directory)), comms);
-			got = CommunicationHelp.receivePacket(comms);
-		}
-		catch(IOException e)
-		{
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-
-		return got.getCmd() == Command.SUCCESS;
-	}
-
-	@Override
 	public FileStatus getStatus(BackupItem head, File check) throws InterruptedException, SystemErrorException
 	{
 		try
@@ -241,6 +246,25 @@ public class NetworkBackup extends FileChecker implements BackupPreparer, Backup
 	}
 
 	@Override
+	public boolean createDirectory(BackupItem head, File directory) throws InterruptedException, SystemErrorException
+	{
+		System.out.println("Create directory " + directory + " " + toString());
+		Packet got = new Packet();
+		try
+		{
+			CommunicationHelp.sendPacket(new Packet(Command.CREATE_DIRECTORY, head.getPathToSend(directory)), comms);
+			got = CommunicationHelp.receivePacket(comms);
+		}
+		catch(IOException e)
+		{
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		return got.getCmd() == Command.SUCCESS;
+	}
+
+	@Override
 	public boolean getUpdatedFile(BackupItem head, File receive) throws InterruptedException, SystemErrorException
 	{
 		System.out.println("Receive " + receive + toString());
@@ -251,6 +275,7 @@ public class NetworkBackup extends FileChecker implements BackupPreparer, Backup
 			if(got.getCmd() == Command.RECEIVE_FILE)
 			{
 				CommunicationHelp.receiveFile(receive, comms, decrypt);
+				receive.setLastModified(got.getFileDate());
 				return true;
 			}
 		}
@@ -269,13 +294,9 @@ public class NetworkBackup extends FileChecker implements BackupPreparer, Backup
 		try
 		{
 			CommunicationHelp.sendPacket(new Packet(Command.RECEIVE_FILE, send.lastModified(), head.getPathToSend(send)), comms);
+			CommunicationHelp.sendFile(send, comms, encrypt);
 			Packet got = CommunicationHelp.receivePacket(comms);
-			if(got.getCmd() == Command.SEND_FILE)
-			{
-				CommunicationHelp.sendFile(send, comms, encrypt);
-				got = CommunicationHelp.receivePacket(comms);
-				return got.getCmd() == Command.SUCCESS;
-			}
+			return got.getCmd() == Command.SUCCESS;
 		}
 		catch(IOException e)
 		{
@@ -289,9 +310,10 @@ public class NetworkBackup extends FileChecker implements BackupPreparer, Backup
 	@Override
 	public boolean getMissing(BackupItem check) throws InterruptedException, SystemErrorException
 	{
-		System.out.println("Missing " + check + toString());
+		System.out.println("Check Missing " + check + toString());
 		try
 		{
+			CommunicationHelp.sendPacket(new Packet(Command.SEND_FILE_LIST, check.getPathToSend()), comms);
 			SinglyLinkedList<File> missing = new SinglyLinkedList<>();
 			InputStream in = comms.getInputStream();
 
@@ -318,8 +340,23 @@ public class NetworkBackup extends FileChecker implements BackupPreparer, Backup
 
 			for(File f : missing)
 			{
-				getUpdatedFile(check, f);
+				FileStatus status = getStatus(check, f);
+				if(FileStatus.DIRECTORY == status)
+				{
+					// File is a directory, create directory
+					if(!f.mkdir())
+					{
+						// Return if directory could not be created, upcoming files depend on creation
+						return false;
+					}
+				}
+				else
+				{
+					getUpdatedFile(check, f);
+				}
 			}
+
+			return true;
 		}
 		catch(IOException e)
 		{

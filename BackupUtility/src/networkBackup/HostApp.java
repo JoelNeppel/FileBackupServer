@@ -1,6 +1,7 @@
 package networkBackup;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -10,7 +11,11 @@ import java.net.Socket;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
+import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.InputMismatchException;
 
 import javax.crypto.BadPaddingException;
@@ -23,14 +28,14 @@ import communications.ByteHelp;
 import communications.Command;
 import communications.CommunicationHelp;
 import communications.Packet;
-import fileUsage.FileItemHandlerNoGUI;
+import exceptions.ItemNotFoundException;
 import fileUsage.FileStatus;
 import fileUsage.SystemFileReader;
 
 /**
  * Backup server class for distributing the most up to date files throughout all
- * connected devices by starting HostConnection. The server socket will remain
- * open waiting to accept any connection request.
+ * connected devices by starting responding to each device. The server socket
+ * will remain open waiting to accept any connection request.
  *
  * @author JoelNeppel
  *
@@ -38,16 +43,19 @@ import fileUsage.SystemFileReader;
 public class HostApp
 {
 	/**
-	 * The file handler for the list of items
-	 */
-	private static FileItemHandlerNoGUI files;
-
-	/**
-	 * Has map for the settings
+	 * Hash map for the settings
 	 */
 	private static SystemFileReader settings;
 
+	/**
+	 * RSA Cipher with private key. Used to share AES encryption with client
+	 */
 	private static Cipher privateCipher;
+
+	/**
+	 * The path where all the system files are to be located
+	 */
+	private static final String SYSTEM_PATH = "/mnt/BackupDrive/ProtectedResources/";
 
 	/**
 	 * Creates server socket on the designated port and accepts any request to
@@ -60,38 +68,57 @@ public class HostApp
 		try
 		{
 			// Get settings from file
-			settings = new SystemFileReader("/mnt/BackupDrive/ProtectedResources/HostSettings.txt");
+			settings = new SystemFileReader(SYSTEM_PATH + "HostSettings.txt");
+
+			// Check head directory where files will be backed up to
+			String check = settings.get("Storage Location");
+			if(!new File(check).isDirectory())
+			{
+				throw new FileNotFoundException("The given path to back up files " + check + " must be a directory.");
+			}
+
+			// Create RSA cipher using a private encoded key
+			privateCipher = Cipher.getInstance("RSA");
+			File encodedKey = new File(SYSTEM_PATH + settings.get("Encoded Key File"));
+			if(!encodedKey.exists())
+			{
+				throw new FileNotFoundException("The public key must be included in the file: " + encodedKey.getAbsolutePath());
+			}
+			FileInputStream fileIn = new FileInputStream(encodedKey);
+			byte[] read = new byte[(int) encodedKey.length()];
+			fileIn.read(read);
+			fileIn.close();
+			PKCS8EncodedKeySpec spec2 = new PKCS8EncodedKeySpec(read);
+			KeyFactory kf2 = KeyFactory.getInstance("RSA");
+			PrivateKey privateKey = kf2.generatePrivate(spec2);
+			// Only function for cipher will be to unwrap shared AES key
+			privateCipher.init(Cipher.UNWRAP_MODE, privateKey);
 		}
-		catch(InputMismatchException | FileNotFoundException e)
+		catch(InputMismatchException | IOException | ItemNotFoundException e)
 		{
-			System.out.println(e.getMessage());
+			// Problem from getting settings or key from file
+			e.printStackTrace();
 			System.exit(1);
 		}
-		// Create new file handler with given location
-		String storageLocation = settings.get("Storage Location");
-		if(null == storageLocation)
+		catch(InvalidKeySpecException | InvalidKeyException e)
 		{
-			System.out.println("Settings file must include a default location in format \"Storage Location:> location to use:>\"");
+			System.out.println("Problem with RSA private key.");
+			e.printStackTrace();
 			System.exit(2);
 		}
-		files = new FileItemHandlerNoGUI()
+		catch(NoSuchAlgorithmException | NoSuchPaddingException e)
 		{
-			@Override
-			public String getFullPath(String relative)
-			{
-				// Change location to the given backup folder path
-				return storageLocation + convertPath(relative);
-			}
-		};
+			// Will not happen, algorithm is in code
+		}
 
-		ServerSocket ss = null;
-		while(ss == null)
+		ServerSocket server = null;
+		while(null == server)
 		{
 			// Attempts to create server socket until it succeeds
 			try
 			{
 				// Attempts to create socket server
-				ss = new ServerSocket(Integer.parseInt(settings.get("Port")));
+				server = new ServerSocket(Integer.parseInt(settings.get("Port")));
 				System.out.println("Created Server");
 			}
 			catch(IOException e)
@@ -118,21 +145,22 @@ public class HostApp
 			try
 			{
 				// Accept connection and begin handling
-				Socket s = ss.accept();
+				Socket s = server.accept();
 				System.out.println("Started client connection: " + s);
 				handleConnection(s);
 			}
 			catch(IOException e)
 			{
 				// Connection to client failed, ignore and allow other clients to connect
+				System.out.println("Connection to client failed.");
 			}
 		}
 
 		try
 		{
-			if(null != ss)
+			if(null != server)
 			{
-				ss.close();
+				server.close();
 			}
 		}
 		catch(IOException e)
@@ -152,47 +180,59 @@ public class HostApp
 		{
 			Cipher encrypt = null;
 			Cipher decrypt = null;
-
 			try
 			{
+				// Create ciphers from shared AES IV and key
 				IvParameterSpec parameter = getIV(comms);
 				Key AESKey = getAESKey(comms);
-
 				encrypt = Cipher.getInstance("AES/CBC/PKCS5Padding");
 				encrypt.init(Cipher.ENCRYPT_MODE, AESKey, parameter);
 				decrypt = Cipher.getInstance("AES/CBC/PKCS5Padding");
 				decrypt.init(Cipher.DECRYPT_MODE, AESKey, parameter);
-			}
-			catch(IOException | InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException | InvalidAlgorithmParameterException e1)
-			{
-				return;
-			}
 
-			try
-			{
+				// Only respond if user is approved
 				if(!accessAllowed(comms, decrypt))
 				{
+					comms.close();
 					return;
 				}
 			}
-			catch(InputMismatchException | IllegalBlockSizeException | BadPaddingException | IOException e1)
+			catch(IOException | InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException | InvalidAlgorithmParameterException | IllegalBlockSizeException | BadPaddingException e)
 			{
-				// TODO Auto-generated catch block
-				e1.printStackTrace();
+				System.out.println("Problem with shared AES cipher.");
+				e.printStackTrace();
+				try
+				{
+					comms.close();
+				}
+				catch(IOException e1)
+				{
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
 				return;
 			}
 
 			boolean close = false;
-			// Checks if the directory to write file to exists
-			File check = new File(files.getFullPath(""));
+			// Checks again if the directory to write files to exists
+			File check = new File(getFullPath(""));
 			if(!check.exists() || !check.isDirectory())
 			{
 				// reportFail("File location to write items to does not exist.", comms);
-				System.out.println("Given directory location does not exist");
+				System.out.println("Given directory " + check.getAbsolutePath() + " does not exist");
+				try
+				{
+					comms.close();
+				}
+				catch(IOException e)
+				{
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
 				return;
 			}
 
-			while(!close)
+			while(!close && !comms.isClosed())
 			{
 				// Reply to any requests until the client closes
 				try
@@ -234,6 +274,13 @@ public class HostApp
 		}).start();
 	}
 
+	/**
+	 * Receives the IV from the client when sharing an AES cipher.
+	 * @param comms
+	 *     The socket to use to communicate with the client
+	 * @return The 16 byte IV used in the creation of an AES cipher
+	 * @throws IOException
+	 */
 	private static IvParameterSpec getIV(Socket comms) throws IOException
 	{
 		InputStream in = comms.getInputStream();
@@ -242,6 +289,15 @@ public class HostApp
 		return new IvParameterSpec(IVData);
 	}
 
+	/**
+	 * Receives the encoded AES key being shared by the client.
+	 * @param comms
+	 *     The socket to be used to communicate with the client
+	 * @return The AES key used to create the shared AES cipher
+	 * @throws IOException
+	 * @throws InvalidKeyException
+	 * @throws NoSuchAlgorithmException
+	 */
 	private static Key getAESKey(Socket comms) throws IOException, InvalidKeyException, NoSuchAlgorithmException
 	{
 		InputStream in = comms.getInputStream();
@@ -254,10 +310,24 @@ public class HostApp
 		return privateCipher.unwrap(wrappedKey, "AES", Cipher.SECRET_KEY);
 	}
 
-	private static boolean accessAllowed(Socket comms, Cipher decrypt) throws InputMismatchException, IOException, IllegalBlockSizeException, BadPaddingException
+	/**
+	 * Another security step that both checks if the user is allowed and supplies
+	 * the correct password while using the shared cipher to ensure it is correct.
+	 * Receives encrypted username and password and decrypts using the given cipher
+	 * which is then checked if it is contained in the username file supplied by the
+	 * host settings file.
+	 * @param comms
+	 *     The socket to receive the encrypted username and password from
+	 * @param decrypt
+	 *     The cipher to be used to decrypt the username and password
+	 * @return True if the user is in the allowed users file and supplied the
+	 *     matching password, false otherwise
+	 * @throws IOException
+	 * @throws IllegalBlockSizeException
+	 * @throws BadPaddingException
+	 */
+	private static boolean accessAllowed(Socket comms, Cipher decrypt) throws IOException, IllegalBlockSizeException, BadPaddingException
 	{
-		SystemFileReader users = new SystemFileReader("users.txt");
-
 		InputStream in = comms.getInputStream();
 		byte[] dataLen = new byte[4];
 
@@ -268,31 +338,51 @@ public class HostApp
 		in.read(encryptedUsername);
 		String username = new String(decrypt.doFinal(encryptedUsername));
 
-		// See if user is in file
-		String expectedPassword = users.get(username);
-		if(null != expectedPassword)
+		// Create map of usernames and passwords
+		SystemFileReader users = null;
+		try
 		{
+			users = new SystemFileReader(SYSTEM_PATH + settings.get("Users File"));
+		}
+		catch(ItemNotFoundException | FileNotFoundException | InputMismatchException e)
+		{
+			// Critical file is missing
+			e.printStackTrace();
+			System.exit(3);
+		}
+
+		// See if user is in file
+		try
+		{
+			String expectedPassword = users.get(username);
+
 			// Username is in file now check password
 			in.read(dataLen);
 			int passwordLen = ByteHelp.bytesToInt(dataLen);
 			byte[] encryptedPassword = new byte[passwordLen];
 			in.read(encryptedPassword);
 			String gotPassword = new String(decrypt.doFinal(encryptedPassword));
-
+			System.out.println("allowed access to: " + username);
 			return expectedPassword.equals(gotPassword);
 		}
-
-		return false;
+		catch(ItemNotFoundException e)
+		{
+			// Username is not in file
+			return false;
+		}
 	}
 
 	/**
-	 * Responds to the given packet using the given handler.
+	 * Does the appropriate actions requested by the received packet and will send a
+	 * response if necessary.
 	 * @param got
 	 *     The packet to respond to
 	 * @param comms
-	 *     The host connection to use
+	 *     The socket used to communicate with the client
 	 * @param encrypt
+	 *     The encryption algorithm to use if needed
 	 * @param decrypt
+	 *     The decryption algorithm to use if needed
 	 * @throws IOException
 	 * @throws InterruptedException
 	 */
@@ -301,35 +391,33 @@ public class HostApp
 		Packet send = new Packet(null, 0, got.getPath());
 		switch(got.getCmd())
 		{
-			case CREATE_DIRECTORY:
-				// Create requested directory and report result
-				if(files.createDirectory(got.getPath()))
-				{
-					send.setCommand(Command.SUCCESS);
-				}
-				else
-				{
-					send.setCommand(Command.FAILED);
-				}
-				break;
 			case GET_STATUS:
 				// Send whether the file on host is new, old, or same version from date modified
 				send.setCommand(Command.GET_STATUS);
-				File f = new File(files.getFullPath(got.getPath()));
+				File f = new File(getFullPath(got.getPath()));
 				if(f.exists())
 				{
-					send.setFileDate(f.lastModified());
-					if(f.lastModified() > got.getFileDate())
+					// Checks if the requested file is a directory, normally only used after
+					// checking for missing
+					if(f.isDirectory())
 					{
-						send.setStatus(FileStatus.NEW_VERSION);
-					}
-					else if(f.lastModified() < got.getFileDate())
-					{
-						send.setStatus(FileStatus.OLD_VERSION);
+						send.setStatus(FileStatus.DIRECTORY);
 					}
 					else
 					{
-						send.setStatus(FileStatus.SAME_VERSION);
+						send.setFileDate(f.lastModified());
+						if(f.lastModified() > got.getFileDate())
+						{
+							send.setStatus(FileStatus.NEW_VERSION);
+						}
+						else if(f.lastModified() < got.getFileDate())
+						{
+							send.setStatus(FileStatus.OLD_VERSION);
+						}
+						else
+						{
+							send.setStatus(FileStatus.SAME_VERSION);
+						}
 					}
 				}
 				else
@@ -338,26 +426,39 @@ public class HostApp
 				}
 				CommunicationHelp.sendPacket(send, comms);
 				break;
-			case RECEIVE_FILE:
-				// Writes file to host drive and sends result
-				File write = new File(files.getFullPath(got.getPath()));
-				CommunicationHelp.receiveFile(write, comms, decrypt);
-				write.setLastModified(got.getFileDate());
-				send.setCommand(Command.SUCCESS);
+			case CREATE_DIRECTORY:
+				// Create requested directory and report result
+				File newDirectory = new File(getFullPath(got.getPath()));
+				if(newDirectory.exists() || newDirectory.mkdirs())
+				{
+					send.setCommand(Command.SUCCESS);
+				}
+				else
+				{
+					send.setCommand(Command.FAILED);
+				}
 				CommunicationHelp.sendPacket(send, comms);
 				break;
 			case SEND_FILE:
 				// Prepares client to receive and sends file
 				send.setCommand(Command.RECEIVE_FILE);
-				File sendFile = new File(files.getFullPath(got.getPath()));
+				File sendFile = new File(getFullPath(got.getPath()));
 				send.setFileDate(sendFile.lastModified());
 				CommunicationHelp.sendPacket(send, comms);
 				CommunicationHelp.sendFile(sendFile, comms, encrypt);
 				break;
+			case RECEIVE_FILE:
+				// Writes file to host drive and sends result
+				File write = new File(getFullPath(got.getPath()));
+				CommunicationHelp.receiveFile(write, comms, decrypt);
+				write.setLastModified(got.getFileDate());
+				send.setCommand(Command.SUCCESS);
+				CommunicationHelp.sendPacket(send, comms);
+				break;
 			case SEND_FILE_LIST:
 				// Sends list of files on host for client to request missing ones
-				// TODO
-				sendFileList(comms.getOutputStream(), new File(files.getFullPath(got.getPath())), files.getFullPath(got.getPath()));
+				File check = new File(getFullPath(got.getPath()));
+				sendFileList(comms.getOutputStream(), check, check.getAbsolutePath().replace(got.getPath(), ""));
 				break;
 			default:
 				// reportFail("Invalid request to host.", comms);
@@ -365,18 +466,13 @@ public class HostApp
 		}
 	}
 
-	private static void reportFail(String message, Socket comms)
-	{
-		CommunicationHelp.forceSendPacket(new Packet(Command.FAILED), comms);
-		CommunicationHelp.clearInput(comms);
-	}
-
 	/**
 	 * Sends a list of available files for backup to the client to check for any
 	 * missing ones.
 	 * @param out
+	 *     The output stream used to send data to the client
 	 * @param f
-	 *     The file being send
+	 *     The file being sent
 	 * @param pathRemove
 	 *     The machine specific path to be removed before sending
 	 * @throws IOException
@@ -390,6 +486,7 @@ public class HostApp
 				sendFileListRecursive(out, ff, pathRemove);
 			}
 		}
+		// Finished byte
 		out.write((byte) 0xFF);
 	}
 
@@ -397,21 +494,23 @@ public class HostApp
 	 * Sends a list of available files for backup to the client to check for any
 	 * missing ones.
 	 * @param out
+	 *     The output stream used to send data to the client
 	 * @param f
-	 *     The file being send
+	 *     The file being sent
 	 * @param pathRemove
 	 *     The machine specific path to be removed before sending
 	 * @throws IOException
 	 */
 	private static void sendFileListRecursive(OutputStream out, File f, String pathRemove) throws IOException
 	{
-		if(f.isHidden() || (f.isDirectory() && null == f.list()))
+		if(f.isHidden() || (!f.isFile() && !f.isDirectory()) || (f.isDirectory() && null == f.listFiles()))
 		{
 			return;
 		}
 
 		String send = f.getPath().replace(pathRemove, "");
 		out.write(send.getBytes());
+		// File separation byte
 		out.write((byte) 0x0D);
 
 		if(f.isDirectory())
@@ -420,6 +519,26 @@ public class HostApp
 			{
 				sendFileListRecursive(out, ff, pathRemove);
 			}
+		}
+	}
+
+	/**
+	 * Returns the full path for the location where to store the file. The full path
+	 * is from the system set backup location with the relative path appended.
+	 * @param relative
+	 *     The relative path sent by the client
+	 * @return The full path for where to store the file
+	 */
+	private static String getFullPath(String relative)
+	{
+		try
+		{
+			return settings.get("Storage Location") + relative;
+		}
+		catch(ItemNotFoundException e)
+		{
+			// Already checked, should not happen
+			return null;
 		}
 	}
 }

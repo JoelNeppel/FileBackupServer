@@ -11,6 +11,7 @@ package fileUsage;
 public enum FileStatus
 {
 	NOT_FOUND((byte) 'M'),
+	DIRECTORY((byte) 'D'),
 	SAME_VERSION((byte) 'S'),
 	OLD_VERSION((byte) 'O'),
 	NEW_VERSION((byte) 'N'),

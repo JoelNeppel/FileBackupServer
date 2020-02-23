@@ -22,7 +22,7 @@ public class BackupItem
 		PUSH_ONLY(true, false, true, false),
 		PULL_ONLY(false, true, false, true),
 		MISSING_ONLY(false, false, true, true),
-		CONTENTS_ONLY(true, true, false, false);
+		CONTENTS_ONLY(true, true, true, false);
 
 		/**
 		 * True if the option should push the most recent version to host, false if not
@@ -198,15 +198,15 @@ public class BackupItem
 	 * accessing on the backup device.
 	 * @return The path string to remove in the path on other devices
 	 */
-	public String getPathToRemove()
+	private String getPathToRemove()
 	{
 		if(null == relativePath)
 		{
-			return file.getAbsolutePath();
+			return file.getAbsolutePath().replaceAll(file.getName(), "");
 		}
 		else
 		{
-			return file.getAbsolutePath().replaceAll(file.getName(), "");
+			return file.getAbsolutePath();
 		}
 	}
 
@@ -216,13 +216,13 @@ public class BackupItem
 	 */
 	public String getPathToSend()
 	{
-		if(null != relativePath)
+		if(null == relativePath)
 		{
-			return relativePath;
+			return file.getName();
 		}
 		else
 		{
-			return file.getAbsolutePath().replace(getPathToRemove(), "");
+			return relativePath;
 		}
 	}
 
@@ -236,7 +236,7 @@ public class BackupItem
 	 */
 	public String getPathToSend(File send)
 	{
-		return send.getAbsolutePath().replace(file.getAbsolutePath(), getPathToSend());
+		return send.getAbsolutePath().replace(getPathToRemove(), "");
 	}
 
 	/**

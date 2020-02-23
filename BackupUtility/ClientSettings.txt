@@ -1,6 +1,2 @@
-Check IP:> 		false:>
-Expected IP:> 		10.37.17.122:>
-Host:>			yumpi:>
+Host:>			localhost:>
 Port:>			51160:>
-Password:>		STUP1Dc0!!4gebumz tryin tooobhaking.."but yme?!@$? -4realz#:>
-Cipher Key:>		y3qpeWz.XP-n}Q[Q5BP`YAt-_f/QbZ!kz	ZL%,Bs`SzV%F,wAGX2*|[jto]T`J@x>&(i~wa|'%l;l.DdtWZfLFp#Y>|{_,#I9IYg<&F"&g-I3O7!1?)[/w0Bb(sc~Qe ?\0jHo:@26C1!-:>

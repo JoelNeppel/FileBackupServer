@@ -7,6 +7,8 @@ import java.util.InputMismatchException;
 import java.util.NoSuchElementException;
 import java.util.Scanner;
 
+import exceptions.ItemNotFoundException;
+
 /**
  * Contains a hash map for the settings read from the given file. The scanner is
  * using the delimiter ":>" so each key and value must be separated by ":>" It
@@ -61,10 +63,19 @@ public class SystemFileReader
 	 * @param key
 	 *     The key for the desired value
 	 * @return The value for the specified key or null if there isn't one
+	 * @throws ItemNotFoundException
+	 *     If the map does not contain a value for the given key
 	 */
-	public String get(String key)
+	public String get(String key) throws ItemNotFoundException
 	{
-		return items.get(key);
+		String got = items.get(key);
+
+		if(null == got)
+		{
+			throw new ItemNotFoundException("The key " + key + " was not found in the map.");
+		}
+
+		return got;
 	}
 
 	@Override

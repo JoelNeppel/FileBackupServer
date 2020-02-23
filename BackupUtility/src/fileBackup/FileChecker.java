@@ -40,22 +40,6 @@ public abstract class FileChecker
 	public abstract boolean checkSystemReady();
 
 	/**
-	 * Creates the given directory on the backup location
-	 * @param head
-	 *     The head file or directory that can be used to obtain the relative path
-	 *     for the backup location
-	 * @param directory
-	 *     The directory to create
-	 * @return True if the directory was created or already exists, false if it
-	 *     failed
-	 * @throws InterruptedException
-	 *     If the system was interrupted
-	 * @throws SystemErrorException
-	 *     If there was a critical error that cannot be recovered from
-	 */
-	public abstract boolean createDirectory(BackupItem head, File directory) throws InterruptedException, SystemErrorException;
-
-	/**
 	 * Compares the given file to the one at the backup location and returns the
 	 * comparison.
 	 * @param head
@@ -71,6 +55,22 @@ public abstract class FileChecker
 	 *     If there was a critical error that cannot be recovered from
 	 */
 	public abstract FileStatus getStatus(BackupItem head, File check) throws InterruptedException, SystemErrorException;
+
+	/**
+	 * Creates the given directory on the backup location
+	 * @param head
+	 *     The head file or directory that can be used to obtain the relative path
+	 *     for the backup location
+	 * @param directory
+	 *     The directory to create
+	 * @return True if the directory was created or already exists, false if it
+	 *     failed
+	 * @throws InterruptedException
+	 *     If the system was interrupted
+	 * @throws SystemErrorException
+	 *     If there was a critical error that cannot be recovered from
+	 */
+	public abstract boolean createDirectory(BackupItem head, File directory) throws InterruptedException, SystemErrorException;
 
 	/**
 	 * Gets the file from the backup location and copies it to the given file.

@@ -41,7 +41,6 @@ public abstract class CommunicationHelp
 	{
 		OutputStream out = s.getOutputStream();
 		FileInputStream fileRead = null;
-		System.out.println("Sending: " + f);
 		try
 		{
 			fileRead = new FileInputStream(f);
@@ -159,7 +158,6 @@ public abstract class CommunicationHelp
 	public static void receiveFile(File write, Socket s, Cipher decryption) throws IOException
 	{
 		InputStream in = s.getInputStream();
-		System.out.println("Receiving: " + write);
 		File temp = new File(write.getPath() + ".temp");
 		if(temp.exists())
 		{
@@ -175,8 +173,6 @@ public abstract class CommunicationHelp
 			byte[] size = new byte[Long.BYTES];
 			in.read(size);
 			long bytesLeft = ByteHelp.bytesToLong(size);
-			double totalBytes = bytesLeft;
-			byte[] bytes = new byte[(int) Math.min(totalBytes, Integer.MAX_VALUE / 8)]; // Limit maximum size of array arbitrarily
 			while(bytesLeft > 0)
 			{
 				byte[] num = new byte[4];
@@ -188,9 +184,8 @@ public abstract class CommunicationHelp
 				{
 					read += in.read(encryptedData, read, amountToReceive - read);
 				}
-
 				byte[] decryptedData = decryption.doFinal(encryptedData);
-				fileWrite.write(decryptedData.length);
+				fileWrite.write(decryptedData);
 				bytesLeft -= decryptedData.length;
 			}
 
@@ -218,8 +213,6 @@ public abstract class CommunicationHelp
 
 			throw e;
 		}
-
-		System.out.println("Got: " + write);
 	}
 
 	/**

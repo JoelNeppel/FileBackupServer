@@ -76,6 +76,7 @@ public class FileBackup extends Application
 		new Thread(()->
 		{
 			Application.launch();
+			System.exit(0);
 		}).start();
 	}
 
@@ -219,6 +220,7 @@ public class FileBackup extends Application
 
 		backupThread = new Thread(()->
 		{
+			System.out.println("Beginning backup");
 			try
 			{
 				// Set up any backup that needs it and check if they are ready. If not ready, it
@@ -234,6 +236,7 @@ public class FileBackup extends Application
 					boolean ready = checker.checkSystemReady();
 					if(!ready)
 					{
+						System.out.println("Removed " + checker);
 						backups.remove(checker);
 					}
 				}
@@ -246,7 +249,10 @@ public class FileBackup extends Application
 						try
 						{
 							backupFile(item.getFile(), item, checker);
-							checker.getMissing(item);
+							if(item.getAction().shouldPullMissing())
+							{
+								checker.getMissing(item);
+							}
 						}
 						catch(SystemErrorException e)
 						{
@@ -273,6 +279,8 @@ public class FileBackup extends Application
 
 				backupThread = null;
 			}
+
+			System.out.println("Finished Backup");
 		});
 
 		backupThread.start();
@@ -280,17 +288,18 @@ public class FileBackup extends Application
 
 	private static void backupFile(File file, BackupItem head, FileChecker backuper) throws InterruptedException, SystemErrorException
 	{
-		// Do not backup hidden files
-		if(file.isHidden())
+		System.out.println("Backing up " + file);
+		// Do not backup hidden files or abnormal files
+		if(file.isHidden() || (!file.isFile() && !file.isDirectory()))
 		{
 			return;
 		}
 
 		if(file.isDirectory())
 		{
-			if(!file.isFile() || null == file.list())
+			if(null == file.list())
 			{
-				// Do not backup any abnormal file
+				// Do not backup any unusual directories
 				return;
 			}
 

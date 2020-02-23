@@ -1,4 +1,4 @@
-Storage Location:>		C:\users\joeln\Desktop\Test\:>
-Port:>				51160:>
-Password:>			STUP1Dc0!!4gebumz tryin tooobhaking.."but yme?!@$? -4realz#:>
-Cipher Key:>			y3qpeWz.XP-n}Q[Q5BP`YAt-_f/QbZ!kz	ZL%,Bs`SzV%F,wAGX2*|[jto]T`J@x>&(i~wa|'%l;l.DdtWZfLFp#Y>|{_,#I9IYg<&F"&g-I3O7!1?)[/w0Bb(sc~Qe ?\0jHo:@26C1!-:>
+Storage Location:>D:\:>
+Port:>51160:>
+Encoded Key File:>RSAPrivateEncodedKey:>
+Users File:>users.txt:>

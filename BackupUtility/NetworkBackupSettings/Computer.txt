@@ -1,1 +1,4 @@
-Host:>jm@iastate.edu:>
+Host:>			localhost:>
+Port:>			51160:>
+Username:>		Joel:>
+Password:>		myPassword:>

@@ -114,6 +114,16 @@ public class Packet
 		status = FileStatus.byteToStatus(bytes[9]);
 
 		path = new String(bytes, 10, bytes.length - 10);
+		// Convert between different operating systems file separators
+		String separator = System.getProperty("file.separator");
+		if("\\".equals(separator))
+		{
+			path = path.replace('/', '\\');
+		}
+		else
+		{
+			path = path.replace('\\', '/');
+		}
 	}
 
 	/**
@@ -162,7 +172,6 @@ public class Packet
 				at++;
 			}
 		}
-
 		return bytes;
 	}
 
