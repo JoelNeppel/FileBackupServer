@@ -1,12 +1,14 @@
 package fileBackup;
 
+import java.util.LinkedList;
+
 /**
  * @author JoelNeppel
  *
  */
 public interface BackupInitilizer
 {
-	void initilize(String got);
+	void initilize(LinkedList<String> got);
 
-	String output();
+	LinkedList<String> output();
 }

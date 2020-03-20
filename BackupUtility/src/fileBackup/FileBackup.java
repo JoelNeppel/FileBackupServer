@@ -5,6 +5,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.NoSuchElementException;
 import java.util.Scanner;
 
@@ -21,6 +22,7 @@ import javafx.event.ActionEvent;
 import javafx.geometry.HPos;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.geometry.VPos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
@@ -32,6 +34,7 @@ import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.RowConstraints;
 import javafx.scene.layout.VBox;
 import javafx.scene.text.Text;
 import javafx.stage.DirectoryChooser;
@@ -59,25 +62,41 @@ public class FileBackup extends Application
 
 	private static Thread backupThread;
 
-	private static Button backupBtn;
+	private static Text itemInfo;
+
+	private static Text backupMethodInfo;
+
+	private static Text fileInfo;
+
+	private static Text overallStatus;
+
+	private static String curItemInfo;
+
+	private static String curBackupMethodInfo;
+
+	private static String curFileInfo;
+
+	private static String curStatus;
+
+	private static boolean runStatusUpdates;
 
 	/**
 	 * @param args
 	 */
 	public static void main(String[] args)
 	{
+		new Thread(()->
+		{
+			Application.launch();
+			System.exit(0);
+		}).start();
+
 		backups = getBackups(new File("BackupsList.txt"));
 		System.out.println(backups);
 		files = getBackupItems(new File("BackupItemsList.txt"));
 		System.out.println(files);
 		backupThread = null;
 		// TODO read backup methods to use from file
-
-		new Thread(()->
-		{
-			Application.launch();
-			System.exit(0);
-		}).start();
 	}
 
 	private static SinglyLinkedList<FileChecker> getBackups(File read)
@@ -90,22 +109,21 @@ public class FileBackup extends Application
 		map.put(NetworkBackup.class.getSimpleName(), NetworkBackup.class);
 		map.put(ExternalStorageBackup.class.getSimpleName(), ExternalStorageBackup.class);
 
-		Scanner scan;
+		Scanner fileScan;
 		try
 		{
-			scan = new Scanner(read);
+			fileScan = new Scanner(read);
 		}
 		catch(FileNotFoundException e)
 		{
 			return list;
 		}
 
-		scan.useDelimiter(":>");
-
-		while(scan.hasNext())
+		while(fileScan.hasNextLine())
 		{
-			String scanned = scan.next();
-			Class<? extends FileChecker> got = map.get(scanned.trim());
+			Scanner lineScan = new Scanner(fileScan.nextLine());
+			lineScan.useDelimiter(":>");
+			Class<? extends FileChecker> got = map.get(lineScan.next().trim());
 			if(null != got)
 			{
 				try
@@ -113,7 +131,13 @@ public class FileBackup extends Application
 					FileChecker toAdd = got.newInstance();
 					if(toAdd instanceof BackupInitilizer)
 					{
-						((BackupInitilizer) toAdd).initilize(scan.next());
+						LinkedList<String> settings = new LinkedList<>();
+						while(lineScan.hasNext())
+						{
+							settings.add(lineScan.next().trim());
+						}
+
+						((BackupInitilizer) toAdd).initilize(settings);
 					}
 					list.add(toAdd);
 				}
@@ -130,13 +154,14 @@ public class FileBackup extends Application
 			}
 			else
 			{
-				// TODO report fail
+				System.out.println("Unknown backup method");
 			}
+			lineScan.close();
 		}
 
-		if(null != scan)
+		if(null != fileScan)
 		{
-			scan.close();
+			fileScan.close();
 		}
 
 		return list;
@@ -218,6 +243,16 @@ public class FileBackup extends Application
 			return;
 		}
 
+		// Make sure status is empty
+		curItemInfo = "";
+		curBackupMethodInfo = "";
+		curFileInfo = "";
+		curStatus = "";
+
+		// Begin displaying status
+		runStatusUpdates = true;
+		beginStatusUpdates();
+
 		backupThread = new Thread(()->
 		{
 			System.out.println("Beginning backup");
@@ -225,6 +260,7 @@ public class FileBackup extends Application
 			{
 				// Set up any backup that needs it and check if they are ready. If not ready, it
 				// it will be removed
+				curStatus = "Getting Ready...";
 				for(FileChecker checker : backups)
 				{
 					if(checker instanceof BackupPreparer)
@@ -242,15 +278,19 @@ public class FileBackup extends Application
 				}
 
 				// TODO
+				curStatus = "Backing up files...";
 				for(FileChecker checker : backups)
 				{
+					curBackupMethodInfo = checker.toString();
 					for(BackupItem item : files)
 					{
+						curItemInfo = item.getPathToSend();
 						try
 						{
 							backupFile(item.getFile(), item, checker);
 							if(item.getAction().shouldPullMissing())
 							{
+								curFileInfo = "Getting Missing";
 								checker.getMissing(item);
 							}
 						}
@@ -269,6 +309,7 @@ public class FileBackup extends Application
 			}
 			finally
 			{
+				curStatus = "Cleaning up...";
 				for(FileChecker checker : backups)
 				{
 					if(checker instanceof BackupPreparer)
@@ -281,6 +322,18 @@ public class FileBackup extends Application
 			}
 
 			System.out.println("Finished Backup");
+
+			// Clear status updates
+			curBackupMethodInfo = "";
+			curFileInfo = "";
+			curItemInfo = "";
+			curStatus = "";
+			runStatusUpdates = false;
+			// Ensure text display is empty
+			backupMethodInfo.setText("");
+			fileInfo.setText("");
+			itemInfo.setText("");
+			overallStatus.setText("Finished");
 		});
 
 		backupThread.start();
@@ -288,6 +341,7 @@ public class FileBackup extends Application
 
 	private static void backupFile(File file, BackupItem head, FileChecker backuper) throws InterruptedException, SystemErrorException
 	{
+		curFileInfo = file.getAbsolutePath();
 		System.out.println("Backing up " + file);
 		// Do not backup hidden files or abnormal files
 		if(file.isHidden() || (!file.isFile() && !file.isDirectory()))
@@ -323,8 +377,25 @@ public class FileBackup extends Application
 			{
 				if(head.getAction().shouldPullMostRecent())
 				{
-					// Receive most recent version if action requires pull
-					backuper.getUpdatedFile(head, file);
+					boolean success;
+					try
+					{
+						// Receive most recent version if action requires pull
+						success = backuper.getUpdatedFile(head, file);
+					}
+					catch(Exception e)
+					{
+						success = false;
+					}
+
+					if(!success)
+					{
+
+					}
+					else
+					{
+
+					}
 				}
 			}
 			else if((FileStatus.OLD_VERSION == status && head.getAction().shouldPushMostRecent()) || (FileStatus.NOT_FOUND == status && head.getAction().shouldPushMissing()))
@@ -356,17 +427,25 @@ public class FileBackup extends Application
 		c1.setPercentWidth(50);
 		c2.setPercentWidth(50);
 		grid.getColumnConstraints().addAll(c1, c2);
-		grid.getColumnConstraints().addAll();
+
+		RowConstraints r1 = new RowConstraints();
+		RowConstraints r2 = new RowConstraints();
+		RowConstraints r3 = new RowConstraints();
+		RowConstraints r4 = new RowConstraints();
+		r1.setPercentHeight(5);
+		r2.setPercentHeight(70);
+		r3.setPercentHeight(5);
+		r4.setPercentHeight(20);
+		grid.getRowConstraints().addAll(r1, r2, r3, r4);
 
 		Scene scene = new Scene(grid, 600, 600);
 
-		backupBtn = new Button("Backup");
+		Button backupBtn = new Button("Backup");
 		backupBtn.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
 		backupBtn.setOnAction((ActionEvent a)->
 		{
 			backup();
 		});
-		grid.add(backupBtn, 0, 0);
 
 		// Table for items to be backed up
 		TableView<BackupItem> table = new TableView<>();
@@ -397,7 +476,6 @@ public class FileBackup extends Application
 			}
 		});
 		table.getColumns().setAll(relative, action, path);
-		grid.add(table, 0, 1);
 
 		// Buttons that modify backup item list
 		Button addBtn = new Button("Add");
@@ -423,17 +501,22 @@ public class FileBackup extends Application
 				updateFile();
 			}
 		});
+
+		// Button to add backup method
+		Button addBackup = new Button("Add Backup");
+		addBackup.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+		// TODO Make button add backup
+
 		// HBox for even spacing and size
 		HBox btns = new HBox();
 		btns.setSpacing(20);
-		addBtn.setMaxWidth(Double.MAX_VALUE);
-		editBtn.setMaxWidth(Double.MAX_VALUE);
-		removeBtn.setMaxWidth(Double.MAX_VALUE);
+		addBtn.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+		editBtn.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+		removeBtn.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
 		HBox.setHgrow(addBtn, Priority.ALWAYS);
 		HBox.setHgrow(editBtn, Priority.ALWAYS);
 		HBox.setHgrow(removeBtn, Priority.ALWAYS);
 		btns.getChildren().addAll(addBtn, editBtn, removeBtn);
-		grid.add(btns, 0, 2);
 
 		// VBox for all backup options
 		VBox box = new VBox();
@@ -441,10 +524,64 @@ public class FileBackup extends Application
 		{
 			GridPane add = backup.getGrid();
 			box.getChildren().add(add);
-			// Obox.setBorder(new Border(new BorderStroke(Paint., null, null, null)));
 			VBox.setVgrow(add, Priority.ALWAYS);
 		}
-		grid.add(box, 1, 0);
+
+		// GridPane for status updates
+		GridPane status = new GridPane();
+
+		status.setHgap(10);
+		status.setVgap(10);
+		c1 = new ColumnConstraints();
+		c1.setPercentWidth(22);
+		c2 = new ColumnConstraints();
+		c2.setPercentWidth(25);
+		ColumnConstraints c3 = new ColumnConstraints();
+		c3.setPercentWidth(53);
+		status.getColumnConstraints().addAll(c1, c2, c3);
+		r1 = new RowConstraints();
+		r1.setPercentHeight(20);
+		r2 = new RowConstraints();
+		r2.setPercentHeight(20);
+		r3 = new RowConstraints();
+		r3.setPercentHeight(60);
+		status.getRowConstraints().addAll(r1, r2, r3);
+
+		// Text to be added
+		Text working = new Text("Working on:");
+		Text using = new Text("Using backup method:");
+		Text backingUp = new Text("Backing up file:");
+		itemInfo = new Text();
+		backupMethodInfo = new Text();
+		fileInfo = new Text();
+		overallStatus = new Text("Waiting...");
+		// Set wrapping
+		// TODO
+		fileInfo.wrappingWidthProperty().bind(status.widthProperty().divide(2));
+		status.add(overallStatus, 0, 0);
+		status.add(working, 0, 1);
+		status.add(using, 0, 2);
+		status.add(itemInfo, 1, 1);
+		status.add(backupMethodInfo, 1, 2);
+		status.add(backingUp, 2, 1);
+		status.add(fileInfo, 2, 2);
+		GridPane.setValignment(overallStatus, VPos.TOP);
+		GridPane.setValignment(working, VPos.TOP);
+		GridPane.setValignment(using, VPos.TOP);
+		GridPane.setValignment(itemInfo, VPos.TOP);
+		GridPane.setValignment(backupMethodInfo, VPos.TOP);
+		GridPane.setValignment(backingUp, VPos.TOP);
+		GridPane.setValignment(fileInfo, VPos.TOP);
+
+		// Add items to grid
+		grid.add(backupBtn, 0, 0);
+		grid.add(table, 0, 1);
+		grid.add(btns, 0, 2);
+		grid.add(box, 1, 1);
+		grid.add(addBackup, 1, 2);
+		grid.add(status, 0, 3);
+
+		GridPane.setColumnSpan(status, 2);
 
 		// Set up window
 		primary.setTitle("Backup Utility");
@@ -609,5 +746,29 @@ public class FileBackup extends Application
 		catch(IOException e)
 		{
 		}
+	}
+
+	private static void beginStatusUpdates()
+	{
+		new Thread(()->
+		{
+			while(runStatusUpdates)
+			{
+				itemInfo.setText(curItemInfo);
+				backupMethodInfo.setText(curBackupMethodInfo);
+				fileInfo.setText(curFileInfo);
+				overallStatus.setText(curStatus);
+				try
+				{
+					// Only update 20 times every second
+					Thread.sleep(50);
+				}
+				catch(InterruptedException e)
+				{
+					// Prevent too many updates each second
+					return;
+				}
+			}
+		}).start();
 	}
 }

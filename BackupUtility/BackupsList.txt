@@ -1,1 +1,1 @@
-NetworkBackup:>Computer:>
+ExternalStorageBackup:>ISU Network Drive:>C:\Users\joeln\Desktop\put\:>

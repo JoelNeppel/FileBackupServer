@@ -2,12 +2,10 @@ package networkBackup;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
-import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
@@ -16,7 +14,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
-import java.util.InputMismatchException;
+import java.util.LinkedList;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -53,15 +51,14 @@ public class NetworkBackup extends FileChecker implements BackupPreparer, Backup
 	private Cipher decrypt;
 
 	@Override
-	public void initilize(String got)
+	public void initilize(LinkedList<String> got)
 	{
-		name = got;
+		name = got.getFirst();
 	}
 
 	@Override
 	public void setUp()
 	{
-		System.out.println("Setup " + toString());
 		try
 		{
 			// Get settings
@@ -113,92 +110,25 @@ public class NetworkBackup extends FileChecker implements BackupPreparer, Backup
 			decrypt.init(Cipher.DECRYPT_MODE, aeskey, cipher.getParameters());
 
 			// Send host AES encrypted username and password for login
-			try
-			{
-				byte[] username = encrypt.doFinal(settings.get("Username").getBytes());
-				byte[] password = encrypt.doFinal(settings.get("Password").getBytes());
-				buffer = ByteBuffer.allocate(2 * Integer.BYTES + username.length + password.length);
-				buffer.putInt(username.length);
-				buffer.put(username);
-				buffer.putInt(password.length);
-				buffer.put(password);
-				out.write(buffer.array());
-			}
-			catch(ItemNotFoundException e)
-			{
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-
-			// TODO maybe check login accepted
+			byte[] username = encrypt.doFinal(settings.get("Username").getBytes());
+			byte[] password = encrypt.doFinal(settings.get("Password").getBytes());
+			buffer = ByteBuffer.allocate(2 * Integer.BYTES + username.length + password.length);
+			buffer.putInt(username.length);
+			buffer.put(username);
+			buffer.putInt(password.length);
+			buffer.put(password);
+			out.write(buffer.array());
 		}
-		catch(InputMismatchException e)
+		catch(IOException | NoSuchAlgorithmException | IllegalBlockSizeException | BadPaddingException | ItemNotFoundException | InvalidKeyException | InvalidAlgorithmParameterException
+				| NoSuchPaddingException | InvalidKeySpecException e)
 		{
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		catch(FileNotFoundException e)
-		{
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		catch(NumberFormatException e)
-		{
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		catch(UnknownHostException e)
-		{
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		catch(IOException e)
-		{
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		catch(NoSuchAlgorithmException e)
-		{
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		catch(InvalidKeySpecException e)
-		{
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		catch(NoSuchPaddingException e)
-		{
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		catch(InvalidKeyException e)
-		{
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		catch(IllegalBlockSizeException e)
-		{
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		catch(InvalidAlgorithmParameterException e)
-		{
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		catch(BadPaddingException e)
-		{
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			// TODO clean up this mess
 		}
 	}
 
 	@Override
 	public void tearDown()
 	{
-		// TODO Auto-generated method stub
-		System.out.println("Tear-down " + toString());
 		if(null != comms)
 		{
 			try
@@ -221,7 +151,6 @@ public class NetworkBackup extends FileChecker implements BackupPreparer, Backup
 	@Override
 	public boolean checkSystemReady()
 	{
-		System.out.println("Check ready " + toString());
 		// True only if the socket is connected and not closed
 		return null != comms && comms.isConnected() && !comms.isClosed();
 	}
@@ -231,7 +160,6 @@ public class NetworkBackup extends FileChecker implements BackupPreparer, Backup
 	{
 		try
 		{
-			System.out.println("Status of " + check + toString());
 			Packet send = new Packet(Command.GET_STATUS, check.lastModified(), head.getPathToSend(check));
 			CommunicationHelp.sendPacket(send, comms);
 			Packet got = CommunicationHelp.receivePacket(comms);
@@ -248,7 +176,6 @@ public class NetworkBackup extends FileChecker implements BackupPreparer, Backup
 	@Override
 	public boolean createDirectory(BackupItem head, File directory) throws InterruptedException, SystemErrorException
 	{
-		System.out.println("Create directory " + directory + " " + toString());
 		Packet got = new Packet();
 		try
 		{
@@ -267,7 +194,6 @@ public class NetworkBackup extends FileChecker implements BackupPreparer, Backup
 	@Override
 	public boolean getUpdatedFile(BackupItem head, File receive) throws InterruptedException, SystemErrorException
 	{
-		System.out.println("Receive " + receive + toString());
 		try
 		{
 			CommunicationHelp.sendPacket(new Packet(Command.SEND_FILE, head.getPathToSend(receive)), comms);
@@ -290,7 +216,6 @@ public class NetworkBackup extends FileChecker implements BackupPreparer, Backup
 	@Override
 	public boolean sendUpdatedFile(BackupItem head, File send) throws InterruptedException, SystemErrorException
 	{
-		System.out.println("Send " + send + toString());
 		try
 		{
 			CommunicationHelp.sendPacket(new Packet(Command.RECEIVE_FILE, send.lastModified(), head.getPathToSend(send)), comms);
@@ -310,7 +235,6 @@ public class NetworkBackup extends FileChecker implements BackupPreparer, Backup
 	@Override
 	public boolean getMissing(BackupItem check) throws InterruptedException, SystemErrorException
 	{
-		System.out.println("Check Missing " + check + toString());
 		try
 		{
 			CommunicationHelp.sendPacket(new Packet(Command.SEND_FILE_LIST, check.getPathToSend()), comms);
@@ -373,8 +297,10 @@ public class NetworkBackup extends FileChecker implements BackupPreparer, Backup
 	}
 
 	@Override
-	public String output()
+	public LinkedList<String> output()
 	{
-		return name;
+		LinkedList<String> list = new LinkedList<String>();
+		list.add(name);
+		return list;
 	}
 }
